@@ -130,8 +130,23 @@ export default function BookingPage() {
     setShowSuccess(false);
   };
 
+  // Preload logo image
+  const preloadLogo = () => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = '/logo.png';
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => resolve(img);
+      img.onerror = () => {
+        console.log('Logo not found, using fallback');
+        resolve(null);
+      };
+    });
+  };
+
   // Generate and Download Image Receipt
-  const downloadImageReceipt = () => {
+  const downloadImageReceipt = async () => {
     if (!receiptRef.current) {
       console.error("Receipt element not found");
       alert("Error generating receipt. Please try again.");
@@ -140,111 +155,168 @@ export default function BookingPage() {
 
     setIsBooking(true);
 
-    // Add a small delay to ensure the receipt is fully rendered
-    setTimeout(() => {
-      // First remove any gradient classes to avoid html2canvas error
-      const receiptElement = receiptRef.current;
+    try {
+      // Preload logo
+      const logoImage = await preloadLogo();
       
-      // Create a copy of the receipt element without gradients
-      const tempReceipt = document.createElement('div');
-      tempReceipt.innerHTML = receiptElement.innerHTML;
-      
-      // Remove gradient classes and replace with solid colors
-      const gradientElements = tempReceipt.querySelectorAll('[class*="gradient"]');
-      gradientElements.forEach(el => {
-        const classes = el.className.split(' ');
-        const newClasses = classes.filter(c => !c.includes('gradient'));
-        el.className = newClasses.join(' ');
+      // Add a small delay to ensure the receipt is fully rendered
+      setTimeout(() => {
+        // Create a temporary container for html2canvas
+        const tempContainer = document.createElement('div');
+        tempContainer.style.position = 'absolute';
+        tempContainer.style.left = '-9999px';
+        tempContainer.style.top = '-9999px';
+        tempContainer.style.width = '600px';
+        tempContainer.style.backgroundColor = '#ffffff';
+        tempContainer.style.padding = '32px';
+        tempContainer.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+        tempContainer.style.borderRadius = '12px';
+        tempContainer.style.border = '1px solid #e5e7eb';
         
-        // Replace gradient backgrounds with solid colors
-        if (el.className.includes('from-yellow-500') && el.className.includes('to-yellow-600')) {
-          el.style.background = '#f59e0b'; // yellow-500
-        }
-        if (el.className.includes('from-green-500') && el.className.includes('to-green-400')) {
-          el.style.background = '#10b981'; // green-500
-        }
-      });
+        // Create receipt HTML with logo
+        const receiptHTML = `
+          <div style="width: 100%; background: white; padding: 32px;">
+            <!-- Logo and Header -->
+            <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 24px;">
+              <div style="margin-bottom: 16px;">
+                ${logoImage ? 
+                  `<img src="${logoImage.src}" alt="Touch & Glow" style="width: 120px; height: 120px; object-fit: contain; margin: 0 auto 16px;" />` :
+                  `<div style="width: 120px; height: 120px; background: #f59e0b; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                    <span style="color: white; font-size: 24px; font-weight: bold;">T&G</span>
+                  </div>`
+                }
+              </div>
+              
+              <h1 style="font-size: 28px; font-weight: bold; color: #111827; margin-bottom: 4px;">TOUCH & GLOW</h1>
+              <p style="font-size: 14px; font-weight: 600; color: #4b5563; margin-bottom: 8px;">PREMIUM FAMILY SALON</p>
+              <p style="font-size: 12px; color: #6b7280;">Ahmedabad, Gujarat | +91 99 135 46386</p>
+            </div>
 
-      // Create a temporary container for html2canvas
-      const tempContainer = document.createElement('div');
-      tempContainer.style.position = 'absolute';
-      tempContainer.style.left = '-9999px';
-      tempContainer.style.top = '-9999px';
-      tempContainer.style.width = '600px';
-      tempContainer.style.backgroundColor = '#ffffff';
-      tempContainer.style.padding = '32px';
-      tempContainer.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
-      tempContainer.style.borderRadius = '12px';
-      tempContainer.style.border = '1px solid #e5e7eb';
-      
-      // Apply receipt content to temporary container
-      tempContainer.innerHTML = `
-        <div class="w-full bg-white p-8">
-          ${tempReceipt.innerHTML}
-        </div>
-      `;
-      
-      document.body.appendChild(tempContainer);
+            <!-- Divider -->
+            <div style="height: 2px; background: linear-gradient(to right, #f59e0b, #d97706); width: 100%; margin-bottom: 24px;"></div>
 
-      // Use html2canvas with safe options
-      html2canvas(tempContainer, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        logging: false,
-        allowTaint: true,
-        removeContainer: true,
-        width: 600,
-        height: tempContainer.scrollHeight,
-        windowWidth: 600,
-        windowHeight: tempContainer.scrollHeight,
-        onclone: (clonedDoc) => {
-          // Ensure no gradients in cloned document
-          const clonedGradients = clonedDoc.querySelectorAll('[class*="gradient"]');
-          clonedGradients.forEach(el => {
-            const classes = el.className.split(' ');
-            const newClasses = classes.filter(c => !c.includes('gradient'));
-            el.className = newClasses.join(' ');
-          });
-        }
-      }).then((canvas) => {
-        // Convert canvas to image
-        const imageData = canvas.toDataURL("image/png", 1.0);
-        
-        // Create download link
-        const link = document.createElement("a");
-        link.download = `TouchAndGlow_Booking_${customerName.replace(/\s+/g, '_')}_${selectedDate}.png`;
-        link.href = imageData;
-        
-        // Trigger download
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+            <!-- Booking Details Title -->
+            <div style="text-align: center; margin-bottom: 24px;">
+              <h2 style="font-size: 24px; font-weight: bold; color: #111827;">BOOKING  DETAILS</h2>
+            </div>
 
-        // Clean up
-        document.body.removeChild(tempContainer);
+            <!-- Date Section -->
+            <div style="text-align: center; margin-bottom: 32px;">
+              <p style="font-size: 14px; font-weight: 600; color: #4b5563; margin-bottom: 4px;">DATE</p>
+              <p style="font-size: 16px; color: #1f2937;">${formatDateForReceipt(selectedDate)}</p>
+            </div>
+
+            <!-- Booking Information -->
+            <div style="margin-bottom: 32px;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                <span style="font-size: 14px; font-weight: 600; color: #4b5563;">Client Name:</span>
+                <span style="font-size: 16px; color: #1f2937; font-weight: 500;">${customerName}</span>
+              </div>
+              
+              <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                <span style="font-size: 14px; font-weight: 600; color: #4b5563;">Phone:</span>
+                <span style="font-size: 16px; color: #1f2937; font-weight: 500;">${customerPhone}</span>
+              </div>
+              
+              ${cart.length > 0 ? `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                  <span style="font-size: 14px; font-weight: 600; color: #4b5563;">Service:</span>
+                  <span style="font-size: 16px; color: #1f2937; font-weight: 500;">${cart[0].name}</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                  <span style="font-size: 14px; font-weight: 600; color: #4b5563;">Category:</span>
+                  <span style="font-size: 16px; color: #1f2937; font-weight: 500;">${cart[0].category || "General"}</span>
+                </div>
+              ` : ''}
+              
+              <div style="display: flex; justify-content: space-between;">
+                <span style="font-size: 14px; font-weight: 600; color: #4b5563;">Time Slot:</span>
+                <span style="font-size: 16px; color: #1f2937; font-weight: 500;">${selectedSlot?.time || "N/A"}</span>
+              </div>
+            </div>
+
+            <!-- Divider -->
+            <div style="height: 2px; background: linear-gradient(to right, #f59e0b, #d97706); width: 100%; margin-bottom: 24px;"></div>
+
+            <!-- Total Amount -->
+            <div style="text-align: center; margin-bottom: 32px;">
+              <p style="font-size: 18px; font-weight: 600; color: #4b5563; margin-bottom: 8px;">TOTAL AMOUNT TO PAY</p>
+              <p style="font-size: 32px; font-weight: bold; color: #f59e0b;">Rs. ${totalPrice}/-</p>
+            </div>
+
+            <!-- Notes -->
+            <div style="text-align: center; font-size: 14px; color: #6b7280; margin-bottom: 32px;">
+              <p style="font-style: italic; margin-bottom: 4px;">Note: Please arrive 10 mins before your time slot.</p>
+              <p>Thank you for choosing Touch & Glow!</p>
+            </div>
+
+            <!-- Footer -->
+            <div style="padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #9ca3af;">
+              <p>Booking ID: ${Date.now().toString().slice(-8)}</p>
+              <p style="margin-top: 4px;">Generated on: ${new Date().toLocaleString('en-IN')}</p>
+            </div>
+          </div>
+        `;
         
-        setIsBooking(false);
-        
-        // Show success and reset after delay
-        setStep(4);
-        setShowSuccess(true);
-        
-        // Auto reset after 8 seconds
-        setTimeout(() => {
-          resetBooking();
-        }, 8000);
-      }).catch((error) => {
-        console.error("Error generating receipt:", error);
-        // Fallback to simple canvas
-        generateSimpleReceipt();
-        document.body.removeChild(tempContainer);
-      });
-    }, 500);
+        tempContainer.innerHTML = receiptHTML;
+        document.body.appendChild(tempContainer);
+
+        // Use html2canvas with safe options
+        html2canvas(tempContainer, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false,
+          allowTaint: true,
+          removeContainer: true,
+          width: 600,
+          height: tempContainer.scrollHeight,
+          windowWidth: 600,
+          windowHeight: tempContainer.scrollHeight,
+        }).then((canvas) => {
+          // Convert canvas to image
+          const imageData = canvas.toDataURL("image/png", 1.0);
+          
+          // Create download link
+          const link = document.createElement("a");
+          link.download = `TouchAndGlow_Booking_${customerName.replace(/\s+/g, '_')}_${selectedDate}.png`;
+          link.href = imageData;
+          
+          // Trigger download
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          // Clean up
+          document.body.removeChild(tempContainer);
+          
+          setIsBooking(false);
+          
+          // Show success and reset after delay
+          setStep(4);
+          setShowSuccess(true);
+          
+          // Auto reset after 8 seconds
+          setTimeout(() => {
+            resetBooking();
+          }, 8000);
+        }).catch((error) => {
+          console.error("Error generating receipt:", error);
+          // Fallback to simple canvas
+          generateSimpleReceipt(logoImage);
+          document.body.removeChild(tempContainer);
+        });
+      }, 500);
+    } catch (error) {
+      console.error("Error in receipt generation:", error);
+      // Fallback without logo
+      generateSimpleReceipt();
+    }
   };
 
   // Simple fallback receipt generator
-  const generateSimpleReceipt = () => {
+  const generateSimpleReceipt = (logoImage = null) => {
     const canvas = document.createElement('canvas');
     canvas.width = 600;
     canvas.height = 800;
@@ -260,36 +332,61 @@ export default function BookingPage() {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw header
-    ctx.fillStyle = '#f59e0b';
-    ctx.fillRect(0, 0, canvas.width, 100);
+    // Draw header with gradient
+    const headerGradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    headerGradient.addColorStop(0, '#f59e0b');
+    headerGradient.addColorStop(1, '#d97706');
+    ctx.fillStyle = headerGradient;
+    ctx.fillRect(0, 0, canvas.width, 120);
+    
+    // Draw logo or placeholder
+    if (logoImage) {
+      try {
+        // Draw logo centered
+        const logoSize = 80;
+        const logoX = canvas.width/2 - logoSize/2;
+        const logoY = 20;
+        ctx.drawImage(logoImage, logoX, logoY, logoSize, logoSize);
+      } catch (e) {
+        // If logo fails, draw placeholder
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('T&G', canvas.width/2, 60);
+      }
+    } else {
+      // Draw placeholder
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('T&G', canvas.width/2, 60);
+    }
     
     // Salon name
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 28px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('TOUCH & GLOW', canvas.width/2, 40);
+    ctx.fillText('TOUCH & GLOW', canvas.width/2, 100);
     
     ctx.font = 'bold 16px Arial';
-    ctx.fillText('PREMIUM FAMILY SALON', canvas.width/2, 65);
+    ctx.fillText('PREMIUM FAMILY SALON', canvas.width/2, 125);
     
     ctx.font = '14px Arial';
-    ctx.fillText('Ahmedabad, Gujarat | +91 99 135 46386', canvas.width/2, 85);
+    ctx.fillText('Ahmedabad, Gujarat | +91 99 135 46386', canvas.width/2, 145);
 
     // Booking details
     ctx.fillStyle = '#000000';
     ctx.font = 'bold 22px Arial';
-    ctx.fillText('BOOKING DETAILS', canvas.width/2, 140);
+    ctx.fillText('BOOKING  DETAILS', canvas.width/2, 180);
     
     // Date
     ctx.font = 'bold 16px Arial';
-    ctx.fillText('DATE', canvas.width/2, 170);
+    ctx.fillText('DATE', canvas.width/2, 210);
     
     ctx.font = '14px Arial';
-    ctx.fillText(selectedDate, canvas.width/2, 190);
+    ctx.fillText(selectedDate, canvas.width/2, 230);
 
     // Client info
-    let yPos = 230;
+    let yPos = 270;
     ctx.textAlign = 'left';
     ctx.font = 'bold 14px Arial';
     ctx.fillText('Client Name:', 50, yPos);
@@ -434,7 +531,7 @@ export default function BookingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900 font-sans pb-24">
       
-      {/* Hidden Receipt for Image Capture */}
+      {/* Hidden Receipt for Image Capture (removed gradient classes) */}
       <div className="fixed -left-[9999px] -top-[9999px] opacity-0 pointer-events-none">
         <div 
           ref={receiptRef}
@@ -449,8 +546,10 @@ export default function BookingPage() {
           {/* Logo and Header */}
           <div className="flex flex-col items-center mb-6">
             <div className="mb-4">
-              <div className="w-32 h-32" style={{ backgroundColor: '#f59e0b', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                <span className="text-white text-2xl font-bold">T&G</span>
+              <div className="w-32 h-32 flex items-center justify-center mx-auto mb-4">
+                <div className="w-full h-full bg-[#f59e0b] rounded-full flex items-center justify-center">
+                  <span className="text-white text-2xl font-bold">T&G</span>
+                </div>
               </div>
             </div>
             
@@ -464,7 +563,7 @@ export default function BookingPage() {
 
           {/* Booking Details Title */}
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">BOOKING DETAILS</h2>
+            <h2 className="text-2xl font-bold text-gray-900">BOOKING  DETAILS</h2>
           </div>
 
           {/* Date Section */}
@@ -875,7 +974,7 @@ export default function BookingPage() {
                 )}
               </button>
               <p className="text-center text-xs text-gray-500 mt-2">
-                You'll receive a beautiful image receipt
+                You'll receive a beautiful image receipt with logo
               </p>
             </div>
           </div>
@@ -925,7 +1024,7 @@ export default function BookingPage() {
                 <p className="text-yellow-700 font-medium">Receipt Downloaded!</p>
               </div>
               <p className="text-sm text-yellow-600 mb-2">
-                Your beautiful booking receipt has been downloaded as an image
+                Your beautiful booking receipt with logo has been downloaded
               </p>
               <p className="text-xs text-yellow-500">
                 Check your downloads folder for "TouchAndGlow_Booking_*.png"
